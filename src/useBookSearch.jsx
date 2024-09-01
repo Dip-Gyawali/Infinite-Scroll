@@ -1,33 +1,50 @@
 import axios from 'axios';
-import React from 'react'
-import { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 export default function useBookSearch(query, pageNo) {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+    const [books, setBooks] = useState([]);
+    const [more, setMore] = useState(false);
 
-    useEffect(async () => {
-        //cancel token generates a token to cancel api request which solves unnecessary api call
+    useEffect(() => {
+        setBooks([]);
+    }, [query]);
 
+    useEffect(() => {
+
+         //cancel token generates a token to cancel api request which solves unnecessary api call
+         
         const source = axios.CancelToken.source();
-        // console.log(source.token);
-        try {
-            let res = await axios({
-                method: "GET",
-                url: "http://openlibrary.org/search.json",
-                params: { q: query, page: pageNo },
-                cancelToken: source.token
-            })
-            // console.log(res.cancelToken);
-            console.log(res);
-        } catch (e) {
-            if (axios.isCancel(e)) {
-                console.log(e.message)
-                return;
-            }
-        }
 
-        return ()=>{
+        const fetchData = async () => {
+            setLoading(true);
+            setError(false);
+            try {
+                const res = await axios.get("http://openlibrary.org/search.json", {
+                    params: { q: query, page: pageNo },
+                    cancelToken: source.token
+                });
+                setBooks(prevBooks => {
+                    return [...new Set([...prevBooks, ...res.data.docs.map(b => b.title)])];
+                });
+                setMore(res.data.docs.length > 0);
+            } catch (e) {
+                if (axios.isCancel(e)) {
+                    console.log("Request canceled:", e.message);
+                } else {
+                    setError(true);
+                }
+            }
+            setLoading(false);
+        };
+
+        fetchData();
+
+        return () => {
             source.cancel("cancelled");
-        }
-    }, [query, pageNo])
-    return null;
+        };
+    }, [query, pageNo]);
+
+    return { loading, error, books, more };
 }
